@@ -1,6 +1,7 @@
 
 from django.http import JsonResponse
 from rest_framework.views import APIView
+from rest_framework import status
 
 # views.py
 from rest_framework import viewsets
@@ -13,9 +14,137 @@ from django.middleware.csrf import get_token
 import google.auth # Import Google's authentication library # After
 import json
 from datetime import datetime
+import re
+
+
+
 
 def csrf(request):
     return JsonResponse({'csrfToken': get_token(request)})
+
+
+def parse_json_response(raw_response: str | dict) -> dict:
+    """
+    Parses a JSON response (with optional 'json' or ```json prefix) 
+    and returns it as a nested dictionary.
+    
+    Args:
+        raw_response: Either a raw string (possibly prefixed with 'json' or ```json```) 
+                      or an already-parsed dict.
+    
+    Returns:
+        Nested dictionary as-is from the JSON.
+    """
+    
+    if isinstance(raw_response, dict):
+        return raw_response
+
+    if isinstance(raw_response, str):
+        # Strip ```json ... ``` or bare 'json' word prefix
+        cleaned = re.sub(r'^```json\s*|^json\s*|```\s*$', '', raw_response.strip(), flags=re.MULTILINE)
+        return json.loads(cleaned)
+
+    raise TypeError(f"Expected str or dict, got {type(raw_response).__name__}")
+
+
+
+###################################################################################
+
+
+class ProposalViewSet(viewsets.ModelViewSet):
+    queryset = Proposal.objects.all().order_by('-created_at')
+    serializer_class = ProposalSerializer
+
+class AmbiguityViewSet(viewsets.ModelViewSet):
+    queryset = Ambiguity.objects.all().order_by('-created_at')
+    serializer_class = AmbiguitySerializer
+
+class DiscrepancyViewSet(viewsets.ModelViewSet):
+    queryset = Discrepancy.objects.all().order_by('-created_at')
+    serializer_class = DiscrepancySerializer
+    
+
+###################################################################################
+
+
+class findambiguity(APIView):
+    def post(self, request):
+        print("\n\n","findAmbiguity: request.data**=", request.data,"\n\n")
+        applicant_prompt = request.data
+        applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
+
+        with open("find_ambiguity_instructions_v0.02.txt", "r", encoding="utf-8") as f:
+            system_instructions = f.read()
+
+        # 1. Fetch today's date dynamically and format it clearly (e.g., "February 26, 2026")
+        today_date = datetime.now().strftime("%B %d, %Y")
+
+        # 2. Create a small string to inject the date context
+        date_injection = f"SYSTEM NOTE: Today's current date is {today_date}. Use this date to determine if any years provided are in the past or the future."
+
+        # 3. Combine them all together
+        full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
+#        print("Get Clarity Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
+        try:
+            credentials, project = google.auth.default()
+            if credentials:
+                genai.configure(credentials=credentials)
+
+            # Use the model name you confirmed from list_models()
+            #model = genai.GenerativeModel('models/gemini-2.5-pro')
+            model = genai.GenerativeModel("models/gemini-2.5-flash-lite")
+
+            generation_config = genai.types.GenerationConfig(
+                temperature=0.3,
+##                max_output_tokens=2000,
+            )
+
+            response = model.generate_content(
+                full_prompt,
+                generation_config=generation_config,
+            )
+
+            generated_text = ""
+            if response.candidates:
+                if hasattr(response.candidates[0].content, 'text'):
+                     generated_text = response.candidates[0].content.text
+                else:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'text'):
+                            generated_text += part.text
+            else:
+                finish_reason = None
+                safety_ratings = []
+                if response.prompt_feedback:
+                    finish_reason = response.prompt_feedback.block_reason
+                    # Access safety ratings if available
+                    if response.prompt_feedback.safety_ratings:
+                         safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
+                
+                error_message = f"Model did not return any candidates."
+                if finish_reason:
+                    error_message += f" Block Reason: {finish_reason}."
+                if safety_ratings:
+                    error_message += f" Safety Ratings: {safety_ratings}."
+                
+                raise Exception(error_message)
+###############################################################
+            generated_text_flat = parse_json_response(generated_text)
+###############################################################
+            print("\n\findambiguity - Google Gen AI response: ", generated_text_flat)
+#            return JsonResponse({"response": generated_text}, safe=False)
+            return JsonResponse({"response": generated_text_flat}, safe=False)
+
+
+        except Exception as e:
+            print(f"Error occurred while calling Google Gen AI: {e}")
+            return JsonResponse({"error": str(e)}, status=500)
+        
+
+
+###################################################################################
+
+
 
 class getclarity(APIView):
 # Create your views here.
@@ -94,97 +223,6 @@ class getclarity(APIView):
             return JsonResponse({"error": str(e)}, status=500)
 
 
-# class submit(APIView):
-# #    permission_classes = [IsAuthenticated]
-#     print("submit hit!")
-
-#     def post(self, request):
-#         print("\n\n","Submit Proposal form: request.data**=", request.data,"\n\n")
-#         applicant_prompt = request.data
-#         applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
-
-#         with open("Refined_system_instructions_v0.02.txt", "r", encoding="utf-8") as f:
-#             system_instructions = f.read()
-
-#         # 1. Fetch today's date dynamically and format it clearly (e.g., "February 26, 2026")
-#         today_date = datetime.now().strftime("%B %d, %Y")
-
-#         # 2. Create a small string to inject the date context
-#         date_injection = f"SYSTEM NOTE: Today's current date is {today_date}. Use this date to determine if any years provided are in the past or the future."
-
-#         # 3. Combine them all together
-#         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
-#         ##print("Submition- Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
-#         try:
-#             credentials, project = google.auth.default()
-#             if credentials:
-#                 genai.configure(credentials=credentials)
-
-#             # Use the model name you confirmed from list_models()
-#             #model = genai.GenerativeModel('models/gemini-2.5-pro')
-#             model = genai.GenerativeModel("models/gemini-2.5-pro")
-
-#             generation_config = genai.types.GenerationConfig(
-#                 temperature=0.3,
-# ##                max_output_tokens=2000,
-#             )
-
-#             response = model.generate_content(
-#                 full_prompt,
-#                 generation_config=generation_config,
-#             )
-
-#             generated_text = ""
-#             if response.candidates:
-#                 if hasattr(response.candidates[0].content, 'text'):
-#                      generated_text = response.candidates[0].content.text
-#                 else:
-#                     for part in response.candidates[0].content.parts:
-#                         if hasattr(part, 'text'):
-#                             generated_text += part.text
-#             else:
-#                 finish_reason = None
-#                 safety_ratings = []
-#                 if response.prompt_feedback:
-#                     finish_reason = response.prompt_feedback.block_reason
-#                     # Access safety ratings if available
-#                     if response.prompt_feedback.safety_ratings:
-#                          safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-                
-#                 error_message = f"Model did not return any candidates."
-#                 if finish_reason:
-#                     error_message += f" Block Reason: {finish_reason}."
-#                 if safety_ratings:
-#                     error_message += f" Safety Ratings: {safety_ratings}."
-                
-#                 raise Exception(error_message)
-
-
-# ###############################################################
-#             generated_text_flat = parse_json_response(generated_text)
-# ###############################################################
-#             print(" Submit Proposal - Google Gen AI response: ", generated_text_flat)
-# #            return JsonResponse({"response": generated_text}, safe=False)
-#             return JsonResponse({"response": generated_text_flat}, safe=False)
-
-
-#         except Exception as e:
-#             print(f"Error occurred while calling Google Gen AI: {e}")
-#             return JsonResponse({"error": str(e)}, status=500)   
-###############################################################################
-
-# import json
-# from datetime import datetime
-# from rest_framework.views import APIView
-# from django.http import JsonResponse
-# from rest_framework.response import Response
-from rest_framework import status
-# import google.auth
-# import google.generativeai as genai
-
-# Make sure to import your serializer
-# from .serializers import ProposalSerializer
-# from .utils import parse_json_response
 
 ########submit Updated ###############################################################################
 class submit(APIView):
@@ -306,239 +344,7 @@ class submit(APIView):
             print(f"Error occurred while calling Google Gen AI: {e}")
             return JsonResponse({"error": str(e)}, status=500)
 #######################################################################################        
-        
-import json
-import re
 
-
-def parse_json_response(raw_response: str | dict) -> dict:
-    """
-    Parses a JSON response (with optional 'json' or ```json prefix) 
-    and returns it as a nested dictionary.
-    
-    Args:
-        raw_response: Either a raw string (possibly prefixed with 'json' or ```json```) 
-                      or an already-parsed dict.
-    
-    Returns:
-        Nested dictionary as-is from the JSON.
-    """
-    
-    if isinstance(raw_response, dict):
-        return raw_response
-
-    if isinstance(raw_response, str):
-        # Strip ```json ... ``` or bare 'json' word prefix
-        cleaned = re.sub(r'^```json\s*|^json\s*|```\s*$', '', raw_response.strip(), flags=re.MULTILINE)
-        return json.loads(cleaned)
-
-    raise TypeError(f"Expected str or dict, got {type(raw_response).__name__}")
-
-
-
-class findambiguity(APIView):
-    def post(self, request):
-        print("\n\n","findAmbiguity: request.data**=", request.data,"\n\n")
-        applicant_prompt = request.data
-        applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
-
-        with open("find_ambiguity_instructions_v0.02.txt", "r", encoding="utf-8") as f:
-            system_instructions = f.read()
-
-        # 1. Fetch today's date dynamically and format it clearly (e.g., "February 26, 2026")
-        today_date = datetime.now().strftime("%B %d, %Y")
-
-        # 2. Create a small string to inject the date context
-        date_injection = f"SYSTEM NOTE: Today's current date is {today_date}. Use this date to determine if any years provided are in the past or the future."
-
-        # 3. Combine them all together
-        full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
-#        print("Get Clarity Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
-        try:
-            credentials, project = google.auth.default()
-            if credentials:
-                genai.configure(credentials=credentials)
-
-            # Use the model name you confirmed from list_models()
-            #model = genai.GenerativeModel('models/gemini-2.5-pro')
-            model = genai.GenerativeModel("models/gemini-2.5-flash-lite")
-
-            generation_config = genai.types.GenerationConfig(
-                temperature=0.3,
-##                max_output_tokens=2000,
-            )
-
-            response = model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-            )
-
-            generated_text = ""
-            if response.candidates:
-                if hasattr(response.candidates[0].content, 'text'):
-                     generated_text = response.candidates[0].content.text
-                else:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'text'):
-                            generated_text += part.text
-            else:
-                finish_reason = None
-                safety_ratings = []
-                if response.prompt_feedback:
-                    finish_reason = response.prompt_feedback.block_reason
-                    # Access safety ratings if available
-                    if response.prompt_feedback.safety_ratings:
-                         safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-                
-                error_message = f"Model did not return any candidates."
-                if finish_reason:
-                    error_message += f" Block Reason: {finish_reason}."
-                if safety_ratings:
-                    error_message += f" Safety Ratings: {safety_ratings}."
-                
-                raise Exception(error_message)
-###############################################################
-            generated_text_flat = parse_json_response(generated_text)
-###############################################################
-            print("\n\findambiguity - Google Gen AI response: ", generated_text_flat)
-#            return JsonResponse({"response": generated_text}, safe=False)
-            return JsonResponse({"response": generated_text_flat}, safe=False)
-
-
-        except Exception as e:
-            print(f"Error occurred while calling Google Gen AI: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
-        
-
-
-
-import json
-from datetime import datetime
-from rest_framework.views import APIView
-from django.http import JsonResponse
-import google.auth
-import google.generativeai as genai
-
-# Assuming you have this helper function defined somewhere
-# from .utils import parse_json_response 
-
-# class SubmitAdditionalAnswers(APIView): #without retriving function.
-#     # permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         print("Submit Additional Answers hit!")
-        
-#         # Expected frontend payload:
-#         # {
-#         #   "original_prompt": {...},
-#         #   "ai_first_response": {...},
-#         #   "additional_answers": [{"question": "...", "answer": "..."}, ...]
-#         # }
-#         data = request.data
-
-#         proposal_id= data.get("proposal_id")  # The frontend MUST send the proposal_id to link the follow-up to the original proposal        
-#         original_prompt_str = json.dumps(data.get("original_prompt", {}), indent=2)
-#         ai_first_response_str = json.dumps(data.get("ai_first_response", {}), indent=2)
-        
-#         additional_answers_str = json.dumps(data.get("additional_answers", []), indent=2)
-
-#         # 1. Read the NEW version of system instructions
-#         try:
-#             with open("Add_Ans_system_instructions_v0.01.txt", "r", encoding="utf-8") as f:
-#                 system_instructions = f.read()
-#         except FileNotFoundError:
-#             return JsonResponse({"error": "System instructions file not found."}, status=500)
-
-#         # 2. Setup Date Injection
-#         today_date = datetime.now().strftime("%B %d, %Y")
-#         date_injection = f"SYSTEM NOTE: Today's current date is {today_date}. Use this date to determine if any years provided are in the past or the future."
-
-#         # 3. Construct the "Memory" Prompt
-#         # By providing the history explicitly inside a single prompt, Gemini perfectly 
-#         # understands the context without needing a complex multi-turn ChatSession object.
-#         combined_context = f"""
-# --- ORIGINAL APPLICATION DATA ---
-# {original_prompt_str}
-
-# --- YOUR PREVIOUS ASSESSMENT ---
-# {ai_first_response_str}
-
-# --- NEW INFORMATION: APPLICANT'S ADDITIONAL ANSWERS ---
-# {additional_answers_str}
-#         """
-
-#         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + combined_context
-#         print("Full follow-up prompt sent to Gen AI:\n", full_prompt)
-
-#         try:
-#             credentials, project = google.auth.default()
-#             if credentials:
-#                 genai.configure(credentials=credentials)
-
-#             model = genai.GenerativeModel("models/gemini-2.5-pro")
-
-#             generation_config = genai.types.GenerationConfig(
-#                 temperature=0.3,
-#                 # Set response_mime_type to guarantee valid JSON structure!
-#                 response_mime_type="application/json", 
-#             )
-
-#             response = model.generate_content(
-#                 full_prompt,
-#                 generation_config=generation_config,
-#             )
-
-#             generated_text = ""
-#             if response.candidates:
-#                 if hasattr(response.candidates[0].content, 'text'):
-#                    generated_text = response.candidates[0].content.text
-#                 else:
-#                   for part in response.candidates[0].content.parts:
-#                     if hasattr(part, 'text'):
-#                       generated_text += part.text
-#             else:
-#                 finish_reason = None
-#                 safety_ratings = []
-#                 if response.prompt_feedback:
-#                     finish_reason = response.prompt_feedback.block_reason
-#                     if response.prompt_feedback.safety_ratings:
-#                          safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-                   
-#                 error_message = f"Model did not return any candidates."
-#                 if finish_reason:
-#                     error_message += f" Block Reason: {finish_reason}."
-#                 if safety_ratings:
-#                     error_message += f" Safety Ratings: {safety_ratings}."
-                   
-#                 raise Exception(error_message)
-
-#             # Flatting/parsing the JSON (using your existing function)
-#             # generated_text_flat = parse_json_response(generated_text)
-            
-#             # Since we added response_mime_type="application/json", generated_text is guaranteed to be a JSON string.
-#             generated_text_flat = json.loads(generated_text)
-
-#             print(" Follow-up Submit - Google Gen AI response: ", generated_text_flat)
-#             return JsonResponse({"response": generated_text_flat}, safe=False)
-
-#         except Exception as e:
-#             print(f"Error occurred while calling Google Gen AI: {e}")
-#             return JsonResponse({"error": str(e)}, status=500)
-
-
-
-class ProposalViewSet(viewsets.ModelViewSet):
-    queryset = Proposal.objects.all().order_by('-created_at')
-    serializer_class = ProposalSerializer
-
-class AmbiguityViewSet(viewsets.ModelViewSet):
-    queryset = Ambiguity.objects.all().order_by('-created_at')
-    serializer_class = AmbiguitySerializer
-
-class DiscrepancyViewSet(viewsets.ModelViewSet):
-    queryset = Discrepancy.objects.all().order_by('-created_at')
-    serializer_class = DiscrepancySerializer
-    
 
 
 class SubmitAdditionalAnswers(APIView):
