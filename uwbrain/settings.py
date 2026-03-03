@@ -120,7 +120,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'postgres',  # Replace with your database name (e.g., 'postgres' or a custom one)
         'USER': 'postgres',  # Replace with your database user (e.g., 'postgres' or a custom one)
-        'PASSWORD': os.environ.get('DB_PASSWORD'), # It's best practice to use environment variables for sensitive data
+        'PASSWORD':'y1H1ZSp:tZ7~7,G"', 
+        #os.getenv("DB_PASSWORD"), #os.environ.get('DB_PASSWORD'), # It's best practice to use environment variables for sensitive data
         'HOST': '34.47.227.148',       # Your Cloud SQL instance's Public IP address
         'PORT': '5432',                # Default PostgreSQL port
     }
