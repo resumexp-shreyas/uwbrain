@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-k3exq4q5#&(sds!c9nclqc@q)x^(yrq&03u&9y4j2@y09opw&c
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['uwbrain-216941414590.asia-south1.run.app', 'localhost']
 
 
 # Application definition
