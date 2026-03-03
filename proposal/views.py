@@ -153,7 +153,7 @@ class getclarity(APIView):
         applicant_prompt = request.data
         applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
 
-        with open("Get_clarity_instructions_v0.06.txt", "r", encoding="utf-8") as f:
+        with open("Get_clarity_instructions_v0.07.txt", "r", encoding="utf-8") as f:
             system_instructions = f.read()
 
         # 1. Fetch today's date dynamically and format it clearly (e.g., "February 26, 2026")
@@ -235,7 +235,7 @@ class submit(APIView):
         applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
 
         try:
-            with open("Refined_system_instructions_v0.02.txt", "r", encoding="utf-8") as f:
+            with open("Refined_system_instructions_v0.03.txt", "r", encoding="utf-8") as f:
                 system_instructions = f.read()
         except FileNotFoundError:
             return JsonResponse({"error": "System instructions file not found."}, status=500)
