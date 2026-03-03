@@ -63,13 +63,13 @@ REST_FRAMEWORK = {
 }
 
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8080",   # your frontend dev server
-    "https://uwbrain-216941414590.asia-south1.run.app",  # your Cloud Run backend
-    'https://id-preview--85e59c76-a75b-4d6d-b530-f4518ecb51be.lovable.app',  # your Lovable preview URL
-    'https://health-form-flow-216941414590.asia-south1.run.app'
-]
-#CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:8080",   # your frontend dev server
+#     "https://uwbrain-216941414590.asia-south1.run.app",  # your Cloud Run backend
+#     'https://id-preview--85e59c76-a75b-4d6d-b530-f4518ecb51be.lovable.app',  # your Lovable preview URL
+#     'https://health-form-flow-216941414590.asia-south1.run.app'
+# ]
+CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_COOKIE_HTTPONLY = False  # allow JS to read it
 CSRF_TRUSTED_ORIGINS = ["http://localhost:8080"]
