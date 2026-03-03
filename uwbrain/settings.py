@@ -102,18 +102,31 @@ WSGI_APPLICATION = 'uwbrain.wsgi.application'
 #     }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         # tried to create RXPDB7 BUT Created as rxpdb7 (small letters) in deployment
+#         'NAME': 'uwbraindb',
+#         # may need to change to shreyas [ON LINUX CREATED USER 'shreyas', rest all details same]
+#         'USER': 'shreyas',
+#         'PASSWORD': 'PHI8888581413',
+#         'HOST': 'localhost',
+#         "PORT": "5432",
+#     }
+# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        # tried to create RXPDB7 BUT Created as rxpdb7 (small letters) in deployment
-        'NAME': 'uwbraindb',
-        # may need to change to shreyas [ON LINUX CREATED USER 'shreyas', rest all details same]
-        'USER': 'shreyas',
-        'PASSWORD': 'PHI8888581413',
-        'HOST': 'localhost',
-        "PORT": "5432",
+        'NAME': 'postgres',  # Replace with your database name (e.g., 'postgres' or a custom one)
+        'USER': 'postgres',  # Replace with your database user (e.g., 'postgres' or a custom one)
+        'PASSWORD': os.environ.get('DB_PASSWORD'), # It's best practice to use environment variables for sensitive data
+        'HOST': '34.47.227.148',       # Your Cloud SQL instance's Public IP address
+        'PORT': '5432',                # Default PostgreSQL port
     }
 }
+# uwbrain-memory
+# y1H1ZSp:tZ7~7,G"
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
