@@ -656,6 +656,9 @@ class postUWQn(APIView):
         data = request.data
         proposal_id = data.get("proposal_id")
         answers = data.get("answers")
+        
+        print(f"Received proposal_id: {proposal_id}")
+        print(f"Received answers: {answers}")
 
         db_payload = {
             "answers": answers,
