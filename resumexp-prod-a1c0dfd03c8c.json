@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "resumexp-prod",
+  "private_key_id": "a1c0dfd03c8ce74d4bbe6b052e96ac59cc6ac7d6",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDfIGHYpPscpsdZ\nDtWn4ajD1Zs/RxVGiNDivoUItOCl6OBhJv77YuoeDmdXYPhdQ4eQuXylFt7uv2qu\nJwMuCH93iSanzCVsW64msZH9vY97YTtLV2YHhKfsXCmqi6+5fk8GnxZZ9a5f+Hlw\nefb9I2j85XSn8L6+o/98Dk+pkhATB5m89vbWTgh2OQUvCMntK2XEL7R8JCFqNFZI\nZCljWb9xOe4dAnnIvpoQRTYetdJepCRDMggGQtg//9zadCEhYJBVjXtQiy/unq2y\njRDhT+tYEj43+VmAXo5H+DNUitI5Q8JEV6pMwwRHLH9wzD8/NwQwj5hnZabFj1Tw\nwB8Ta7LPAgMBAAECggEANqN24nbwGSGMInZcAprjWWVm+XVeM+IQCN5vtGSauHYQ\n8Cl8+jFMNGUBkGeqGiiNu3Z4m/LAT8WnCZN7F1w0XqDCywdWSLUgrdAA+JphVuzF\n+NqjnQaymlItT9qaAvn3vx7Y+dmMRGsTzePIBFAWBwvnZ7Kv+v4s84OLpXIjpoza\nXld7cJ81giALYY829LhrzlMXdveuC0sg5X/gkRq1qaM5lmtJdcpD4H9dEOpcT8u9\nSaix8btO+4hGPQASMvhdKDscXYAeHitYMSDM+QrQREIoCi/wl58tNwUQ6loEQLrW\nWWp4Wb2v4nW0pMj5YLqAWdOkSX84NYA9LAtGEvEWMQKBgQDwmdU+3bX9L7+X0/7V\n5e40KEMi2codd/l04iW353mK4ryS7i4iftQycE99fRPjPtPIStiSmETjk8/DPm5i\nEFvtdUErxllxfPNidS1BqiYeUjFuMZzLsSQ+CxGRupL9nNYvpqaeL4JGag9vehUf\nS3Qtw5K07V1Ic+6Bj60OcCmVnwKBgQDtaDyTo7iHCe3ThCsuJi3hOY1LBfWZgFUe\nLlxmQRTjqxGfhoSFVwQuEzj9AO/Uj/H30b8qLc545foC/FNZEixxCKKx/+TQsjO9\nECrbOLreQe/2P1tquxevXMaZ9DUnqtbBsXdvBu2PTnboihUuXHxOXnCn5SPRY/kz\n+lSuIgP00QKBgHcPuQ3+CyP6b/ZDKxVQThszXV2upq0EhMaJbp7eBjBrWWPgR6Y8\nWueG2l8/+Qp4ObchCqEohtaTe7mjeF5AuCz+3Dw8UGCvs4UidT3MZEaW5+0e0fee\ndk/ZjF0wFbM43GkCL+uRmQcdTvwcTr2IyjonUL8Fwyaqb/lfTwUZDgsDAoGBAOt4\nGa0uE9YMaRED5Hgvcg4TsSqaTJDlkocO4KKjJn7xq9cX6tT+C61Pb5Sxmy6vXwW3\nye2h5UpQf/r6HgkYV2/9arE159N/DIYXRQqOZ/oOWF1bVea0jrdmQ61rZFVlwv/2\nb0l2C6W544KdgoirPrfUP9SnFzGWARQm1FqqblYhAoGBALE3vBnTAEuYUjCYD0Wa\neQ5LstuaDTRSYfh4vYB06DS2F6zO51hGRm85CDEWNHrGUpkWzd2OxxewfxFzGLd3\nxrzxXvuhXEcGl/0dNPp7EI/3ENZ1ikYqOYg55+lWxVPWy77OWVdhuvSZfjEstBtH\nidpXuCFuVy55Nsz11eK/FSaw\n-----END PRIVATE KEY-----\n",
+  "client_email": "resumexp-service-account@resumexp-prod.iam.gserviceaccount.com",
+  "client_id": "102874897115508585366",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/resumexp-service-account%40resumexp-prod.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
