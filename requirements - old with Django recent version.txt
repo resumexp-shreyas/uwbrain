@@ -5,8 +5,7 @@ cffi==2.0.0
 charset-normalizer==3.4.4
 colorama==0.4.6
 cryptography==46.0.5
-Django==5.0.4
-gunicorn
+Django==6.0.2
 django-cors-headers==4.9.0
 djangorestframework==3.16.1
 google-ai-generativelanguage==0.6.15
