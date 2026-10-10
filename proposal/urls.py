@@ -27,6 +27,7 @@ urlpatterns = [
     path('getclarity/', views.getclarity.as_view(), name='getclarity'),
     path('findambiguity/', views.findambiguity.as_view(), name='findambiguity'),
     path('SubmitAdditionalAnswers/', views.SubmitAdditionalAnswers.as_view(), name='SubmitAdditionalAnswers'),
+    path('extractrecords/', views.extractrecords.as_view(), name='extractrecords'),
     path('postUWQn/', views.postUWQn.as_view(), name='postUWQn'),
     # path('CreateResume/', views.CreateResume.as_view(), name='CreateResume'),
     # path('getResumeList/', views.getResumeList.as_view(), name='getResumeList'),

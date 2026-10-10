@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+load_dotenv()  # must run before settings that read the environment
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,12 +22,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-k3exq4q5#&(sds!c9nclqc@q)x^(yrq&03u&9y4j2@y09opw&c'
+# Production sets DJANGO_SECRET_KEY (Secret Manager). The fallback is for local development only.
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY') or 'django-insecure-dev-only-change-me'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').strip().lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = ['uwbrain-216941414590.asia-south1.run.app', 'localhost', 'https://id-preview--85e59c76-a75b-4d6d-b530-f4518ecb51be.lovable.app', 'https://health-form-flow-216941414590.asia-south1.run.app/']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+# Deployed host names, comma separated, e.g. DJANGO_ALLOWED_HOSTS=uwbrain-api-xxxx.asia-south1.run.app
+# EXTRA_ALLOWED_HOSTS is for local-network testing (e.g. a LAN IP).
+for _var in ('DJANGO_ALLOWED_HOSTS', 'EXTRA_ALLOWED_HOSTS'):
+    ALLOWED_HOSTS += [h.strip() for h in os.getenv(_var, '').split(',') if h.strip()]
 
 
 # Application definition
@@ -63,16 +70,21 @@ REST_FRAMEWORK = {
 }
 
 
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:8080",   # your frontend dev server
-#     "https://uwbrain-216941414590.asia-south1.run.app",  # your Cloud Run backend
-#     'https://id-preview--85e59c76-a75b-4d6d-b530-f4518ecb51be.lovable.app',  # your Lovable preview URL
-#     'https://health-form-flow-216941414590.asia-south1.run.app'
-# ]
-CORS_ALLOW_ALL_ORIGINS = True
+# In production set CORS_ALLOWED_ORIGINS to the front-end URL(s), comma separated.
+_cors = [o.strip() for o in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()]
+if _cors:
+    CORS_ALLOWED_ORIGINS = _cors
+else:
+    CORS_ALLOW_ALL_ORIGINS = True  # local development only
 
 CSRF_COOKIE_HTTPONLY = False  # allow JS to read it
-CSRF_TRUSTED_ORIGINS = ["http://localhost:8080"]
+CSRF_TRUSTED_ORIGINS = ["http://localhost:8080"] + [o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+
+if not DEBUG:
+    # Cloud Run terminates TLS and forwards the original scheme in this header.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 ROOT_URLCONF = 'uwbrain.urls'
 
@@ -97,39 +109,25 @@ WSGI_APPLICATION = 'uwbrain.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         # tried to create RXPDB7 BUT Created as rxpdb7 (small letters) in deployment
-#         'NAME': 'uwbraindb',
-#         # may need to change to shreyas [ON LINUX CREATED USER 'shreyas', rest all details same]
-#         'USER': 'shreyas',
-#         'PASSWORD': 'PHI8888581413',
-#         'HOST': 'localhost',
-#         "PORT": "5432",
-#     }
-# }
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',  # Replace with your database name (e.g., 'postgres' or a custom one)
-        'USER': 'postgres',  # Replace with your database user (e.g., 'postgres' or a custom one)
-        'PASSWORD':'y1H1ZSp:tZ7~7,G"', 
-        #os.getenv("DB_PASSWORD"), #os.environ.get('DB_PASSWORD'), # It's best practice to use environment variables for sensitive data
-        'HOST': '34.47.227.148',       # Your Cloud SQL instance's Public IP address
-        'PORT': '5432',                # Default PostgreSQL port
+if os.getenv('DB_NAME'):
+    # Cloud SQL for PostgreSQL. On Cloud Run set DB_HOST=/cloudsql/PROJECT:REGION:INSTANCE (unix socket).
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
     }
-}
-# uwbrain-memory
-# y1H1ZSp:tZ7~7,G"
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -167,12 +165,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# --- Your Google Cloud/Gen AI Specific Settings ---
+# --- Gen AI settings ---
+# Auth for the google-generativeai SDK is an API key, configured in proposal/views.py
+# from the GEMINI_API_KEY env var. No GCP project / service-account / Vertex config is used.
 
-import os
 from dotenv import load_dotenv
 load_dotenv()
-GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
-GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION")
-GOOGLE_GENAI_USE_VERTEXAI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "True"
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")

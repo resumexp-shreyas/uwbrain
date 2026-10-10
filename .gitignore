@@ -1,0 +1,48 @@
+# --- Secrets / credentials ---
+.env
+.env.*
+!.env.example
+*-service-account*.json
+resumexp-prod-*.json
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Virtual environments ---
+venv/
+env/
+.venv/
+ENV/
+
+# --- Django ---
+*.log
+db.sqlite3
+db.sqlite3-journal
+/media/
+/staticfiles/
+/static_root/
+local_settings.py
+
+# --- Tooling / IDE ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Cloud Run settings (copy of cloudrun-env.example.yaml)
+cloudrun-env.yaml

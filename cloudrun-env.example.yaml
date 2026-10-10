@@ -1,0 +1,23 @@
+# Copy to cloudrun-env.yaml, replace the <...> placeholders, then deploy with:
+#   gcloud run deploy uwbrain-api ... --env-vars-file cloudrun-env.yaml
+# Secrets (DJANGO_SECRET_KEY, DB_PASSWORD) are NOT here: they come from Secret Manager via --set-secrets.
+
+DJANGO_DEBUG: "false"
+DJANGO_ALLOWED_HOSTS: "uwbrain-api-<NUMBER>.asia-south1.run.app"
+CORS_ALLOWED_ORIGINS: "https://health-form-flow-<NUMBER>.asia-south1.run.app"
+CSRF_TRUSTED_ORIGINS: "https://health-form-flow-<NUMBER>.asia-south1.run.app"
+
+# Gemini on Vertex AI (no API key). For India-only processing use asia-south1 and add LLM_MODEL_FAST: "gemini-3.5-flash".
+LLM_BACKEND: "vertex"
+GOOGLE_CLOUD_PROJECT: "iitb-capstone-project"
+VERTEX_LOCATION: "global"
+
+# Document AI (Document OCR processor)
+DOCAI_PROJECT_ID: "iitb-capstone-project"
+DOCAI_LOCATION: "asia-south1"
+DOCAI_PROCESSOR_ID: "<PROCESSOR_ID>"
+
+# Cloud SQL (PostgreSQL) through the Cloud Run unix socket
+DB_NAME: "uwbrain"
+DB_USER: "uwbrain"
+DB_HOST: "/cloudsql/iitb-capstone-project:asia-south1:uwbrain-db"

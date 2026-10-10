@@ -5,16 +5,22 @@ from rest_framework import status
 
 # views.py
 from rest_framework import viewsets
+from rest_framework.permissions import IsAdminUser
 from .models import Proposal, Ambiguity, Discrepancy
 from .serializers import ProposalSerializer, AmbiguitySerializer, DiscrepancySerializer, UwquestionsSerializer
 
-import google.generativeai as genai# After
+from . import llm
 from django.middleware.csrf import get_token
 
-import google.auth # Import Google's authentication library # After
+import os
 import json
 from datetime import datetime
 import re
+
+from dotenv import load_dotenv
+
+# All model calls go through proposal/llm.py (Vertex AI by default, see .env).
+load_dotenv()
 
 
 
@@ -52,14 +58,20 @@ def parse_json_response(raw_response: str | dict) -> dict:
 
 
 class ProposalViewSet(viewsets.ModelViewSet):
+    # Holds applicants' health answers: staff only. The public front end does not use these routes.
+    permission_classes = [IsAdminUser]
     queryset = Proposal.objects.all().order_by('-created_at')
     serializer_class = ProposalSerializer
 
 class AmbiguityViewSet(viewsets.ModelViewSet):
+    # Holds applicants' health answers: staff only. The public front end does not use these routes.
+    permission_classes = [IsAdminUser]
     queryset = Ambiguity.objects.all().order_by('-created_at')
     serializer_class = AmbiguitySerializer
 
 class DiscrepancyViewSet(viewsets.ModelViewSet):
+    # Holds applicants' health answers: staff only. The public front end does not use these routes.
+    permission_classes = [IsAdminUser]
     queryset = Discrepancy.objects.all().order_by('-created_at')
     serializer_class = DiscrepancySerializer
     
@@ -86,48 +98,7 @@ class findambiguity(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
 #        print("Get Clarity Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
         try:
-            credentials, project = google.auth.default()
-            if credentials:
-                genai.configure(credentials=credentials)
-
-            # Use the model name you confirmed from list_models()
-            #model = genai.GenerativeModel('models/gemini-2.5-pro')
-            model = genai.GenerativeModel("models/gemini-2.5-flash-lite")
-
-            generation_config = genai.types.GenerationConfig(
-                temperature=0.3,
-##                max_output_tokens=2000,
-            )
-
-            response = model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-            )
-
-            generated_text = ""
-            if response.candidates:
-                if hasattr(response.candidates[0].content, 'text'):
-                     generated_text = response.candidates[0].content.text
-                else:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'text'):
-                            generated_text += part.text
-            else:
-                finish_reason = None
-                safety_ratings = []
-                if response.prompt_feedback:
-                    finish_reason = response.prompt_feedback.block_reason
-                    # Access safety ratings if available
-                    if response.prompt_feedback.safety_ratings:
-                         safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-                
-                error_message = f"Model did not return any candidates."
-                if finish_reason:
-                    error_message += f" Block Reason: {finish_reason}."
-                if safety_ratings:
-                    error_message += f" Safety Ratings: {safety_ratings}."
-                
-                raise Exception(error_message)
+            generated_text = llm.generate(full_prompt, model=llm.fast_model(), temperature=0.3, json_mode=True)
 ###############################################################
             generated_text_flat = parse_json_response(generated_text)
 ###############################################################
@@ -137,8 +108,8 @@ class findambiguity(APIView):
 
 
         except Exception as e:
-            print(f"Error occurred while calling Google Gen AI: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
+            print(f"Error occurred while calling the model: {e}")
+            return JsonResponse({"error": str(e)}, status=llm.status_for(e))
         
 
 
@@ -166,48 +137,7 @@ class getclarity(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
 #        print("Get Clarity Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
         try:
-            credentials, project = google.auth.default()
-            if credentials:
-                genai.configure(credentials=credentials)
-
-            # Use the model name you confirmed from list_models()
-            #model = genai.GenerativeModel('models/gemini-2.5-pro')
-            model = genai.GenerativeModel("models/gemini-2.5-flash-lite")
-
-            generation_config = genai.types.GenerationConfig(
-                temperature=0.3,
-##                max_output_tokens=2000,
-            )
-
-            response = model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-            )
-
-            generated_text = ""
-            if response.candidates:
-                if hasattr(response.candidates[0].content, 'text'):
-                     generated_text = response.candidates[0].content.text
-                else:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'text'):
-                            generated_text += part.text
-            else:
-                finish_reason = None
-                safety_ratings = []
-                if response.prompt_feedback:
-                    finish_reason = response.prompt_feedback.block_reason
-                    # Access safety ratings if available
-                    if response.prompt_feedback.safety_ratings:
-                         safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-                
-                error_message = f"Model did not return any candidates."
-                if finish_reason:
-                    error_message += f" Block Reason: {finish_reason}."
-                if safety_ratings:
-                    error_message += f" Safety Ratings: {safety_ratings}."
-                
-                raise Exception(error_message)
+            generated_text = llm.generate(full_prompt, model=llm.fast_model(), temperature=0.3, json_mode=True)
 
 
 ###############################################################
@@ -219,8 +149,8 @@ class getclarity(APIView):
 
 
         except Exception as e:
-            print(f"Error occurred while calling Google Gen AI: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
+            print(f"Error occurred while calling the model: {e}")
+            return JsonResponse({"error": str(e)}, status=llm.status_for(e))
 
 
 
@@ -250,46 +180,7 @@ class submit(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
         
         try:
-            credentials, project = google.auth.default()
-            if credentials:
-                genai.configure(credentials=credentials)
-
-            model = genai.GenerativeModel("models/gemini-2.5-pro")
-
-            generation_config = genai.types.GenerationConfig(
-                temperature=0.3,
-                # Enforce JSON output straight from the model
-                response_mime_type="application/json",
-            )
-
-            response = model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-            )
-
-            generated_text = ""
-            if response.candidates:
-                if hasattr(response.candidates[0].content, 'text'):
-                     generated_text = response.candidates[0].content.text
-                else:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'text'):
-                            generated_text += part.text
-            else:
-                finish_reason = None
-                safety_ratings = []
-                if response.prompt_feedback:
-                    finish_reason = response.prompt_feedback.block_reason
-                    if response.prompt_feedback.safety_ratings:
-                         safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-                
-                error_message = f"Model did not return any candidates."
-                if finish_reason:
-                    error_message += f" Block Reason: {finish_reason}."
-                if safety_ratings:
-                    error_message += f" Safety Ratings: {safety_ratings}."
-                
-                raise Exception(error_message)
+            generated_text = llm.generate(full_prompt, model=llm.decision_model(), temperature=0.3, json_mode=True)
 
 
             ###############################################################
@@ -341,8 +232,8 @@ class submit(APIView):
             # ==============================================================
 
         except Exception as e:
-            print(f"Error occurred while calling Google Gen AI: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
+            print(f"Error occurred while calling the model: {e}")
+            return JsonResponse({"error": str(e)}, status=llm.status_for(e))
 #######################################################################################        
 
 
@@ -403,44 +294,7 @@ class SubmitAdditionalAnswers(APIView):
         #print("Full follow-up prompt sent to Gen AI:\n", full_prompt)
 
         try:
-            credentials, project = google.auth.default()
-            if credentials:
-                genai.configure(credentials=credentials)
-
-            model = genai.GenerativeModel("models/gemini-2.5-pro")
-
-            generation_config = genai.types.GenerationConfig(
-                temperature=0.3,
-                response_mime_type="application/json",
-            )
-
-            response = model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
-            )
-
-            generated_text = ""
-            if response.candidates:
-                if hasattr(response.candidates[0].content, 'text'):
-                    generated_text = response.candidates[0].content.text
-                else:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'text'):
-                            generated_text += part.text
-            else:
-                finish_reason = None
-                safety_ratings = []
-                if response.prompt_feedback:
-                    finish_reason = response.prompt_feedback.block_reason
-                    if response.prompt_feedback.safety_ratings:
-                        safety_ratings = [{sr.category: sr.probability} for sr in response.prompt_feedback.safety_ratings]
-
-                error_message = f"Model did not return any candidates."
-                if finish_reason:
-                    error_message += f" Block Reason: {finish_reason}."
-                if safety_ratings:
-                    error_message += f" Safety Ratings: {safety_ratings}."
-                raise Exception(error_message)
+            generated_text = llm.generate(full_prompt, model=llm.decision_model(), temperature=0.3, json_mode=True)
 
             # Parse JSON response
             generated_text_flat = json.loads(generated_text)
@@ -449,8 +303,8 @@ class SubmitAdditionalAnswers(APIView):
             return JsonResponse({"response": generated_text_flat}, safe=False)
 
         except Exception as e:
-            print(f"Error occurred while calling Google Gen AI: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
+            print(f"Error occurred while calling the model: {e}")
+            return JsonResponse({"error": str(e)}, status=llm.status_for(e))
         
         
 class postUWQn(APIView):
@@ -500,3 +354,69 @@ class postUWQn(APIView):
             print(f"Error occurred while saving Uwquestions: {e}")
             return JsonResponse({"error": str(e)}, status=500)
 #######################################################################################        
+
+
+#######################################################################################
+# Medical records upload: Document AI (OCR) -> Gemini (map to questionnaire) -> prefill
+
+MAX_RECORD_FILES = 8
+MAX_RECORD_TEXT_CHARS = 120_000  # total OCR text sent to Gemini
+
+
+class extractrecords(APIView):
+    """multipart/form-data with one or more `files`. Nothing is stored: files and
+    OCR text live only for the duration of the request."""
+
+    def post(self, request):
+        from . import docai, records
+        from django.conf import settings
+
+        uploads = request.FILES.getlist("files")
+        if not uploads:
+            return JsonResponse({"error": "No files uploaded."}, status=400)
+        if len(uploads) > MAX_RECORD_FILES:
+            return JsonResponse({"error": f"Upload at most {MAX_RECORD_FILES} files at a time."}, status=400)
+
+        guessed = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                   ".png": "image/png", ".tif": "image/tiff", ".tiff": "image/tiff", ".webp": "image/webp"}
+        file_results, doc_blocks, total_chars = [], [], 0
+        for f in uploads:
+            mime = f.content_type if f.content_type in docai.ALLOWED_MIME_TYPES else \
+                guessed.get(os.path.splitext(f.name)[1].lower())
+            if mime is None:
+                return JsonResponse({"error": f"Unsupported file type: {f.name}. Use PDF, JPG, PNG, TIFF or WebP."}, status=400)
+            if f.size > docai.MAX_FILE_BYTES:
+                return JsonResponse({"error": f"{f.name} is larger than 20 MB."}, status=400)
+            try:
+                text, pages = docai.extract_text(f.read(), mime)
+            except docai.DocAINotConfigured as e:
+                return JsonResponse({"error": str(e)}, status=503)
+            except docai.DocAIError as e:
+                print(f"Document AI failed for {f.name}: {e}")
+                return JsonResponse({"error": f"Document AI could not read {f.name}: {e}"}, status=502)
+
+            file_results.append({"file_name": f.name, "pages": pages, "characters": len(text)})
+            if text.strip():
+                total_chars += len(text)
+                doc_blocks.append(f"=== DOCUMENT: {f.name} ===\n{text}")
+
+        if not doc_blocks:
+            return JsonResponse({"error": "No readable text was found in the uploaded files.", "files": file_results}, status=422)
+        if total_chars > MAX_RECORD_TEXT_CHARS:
+            return JsonResponse({"error": "The uploaded records are too long to process together. Upload fewer or shorter documents."}, status=413)
+
+        with open(os.path.join(settings.BASE_DIR, "Extract_records_instructions_v0.01.txt"), "r", encoding="utf-8") as fh:
+            system_instructions = fh.read()
+        today = datetime.now()
+        date_injection = f"SYSTEM NOTE: Today's current date is {today.strftime('%B %d, %Y')}."
+        full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + "\n\n".join(doc_blocks)
+
+        try:
+            raw = parse_json_response(llm.generate(full_prompt, model=llm.decision_model(), temperature=0.1, json_mode=True))
+            if not isinstance(raw, dict):
+                raise ValueError("Model returned a non-object response.")
+        except Exception as e:
+            print(f"Error mapping records to the questionnaire: {e}")
+            return JsonResponse({"error": f"Could not interpret the records: {e}"}, status=llm.status_for(e))
+
+        return JsonResponse({"prefill": records.build_prefill(raw, today.date()), "files": file_results})

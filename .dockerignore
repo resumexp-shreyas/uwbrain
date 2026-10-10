@@ -1,0 +1,17 @@
+# Never ship secrets, local data or tooling in the image
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
+*.sqlite3
+*.log
+context/
+check_llm.py
+cloudrun-env.yaml
