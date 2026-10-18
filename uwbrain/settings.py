@@ -166,8 +166,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # --- Gen AI settings ---
-# Auth for the google-generativeai SDK is an API key, configured in proposal/views.py
-# from the GEMINI_API_KEY env var. No GCP project / service-account / Vertex config is used.
+# Model calls go through proposal/llm.py (Vertex AI by default, see .env).
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# Readable request/response log for every model call (see proposal/trace.py)
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"trace": {"format": "%(asctime)s  %(message)s", "datefmt": "%H:%M:%S"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "trace", "stream": "ext://sys.stdout"}},
+    "loggers": {"uwbrain.trace": {"handlers": ["console"], "level": "INFO", "propagate": False}},
+}

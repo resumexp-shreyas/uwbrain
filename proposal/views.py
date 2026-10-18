@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAdminUser
 from .models import Proposal, Ambiguity, Discrepancy
 from .serializers import ProposalSerializer, AmbiguitySerializer, DiscrepancySerializer, UwquestionsSerializer
 
-from . import llm
+from . import llm, trace
 from django.middleware.csrf import get_token
 
 import os
@@ -81,7 +81,7 @@ class DiscrepancyViewSet(viewsets.ModelViewSet):
 
 class findambiguity(APIView):
     def post(self, request):
-        print("\n\n","findAmbiguity: request.data**=", request.data,"\n\n")
+        t = trace.start("Ambiguity check", request, trace.applicant_lines(request.data))
         applicant_prompt = request.data
         applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
 
@@ -102,13 +102,13 @@ class findambiguity(APIView):
 ###############################################################
             generated_text_flat = parse_json_response(generated_text)
 ###############################################################
-            print("\n\findambiguity - Google Gen AI response: ", generated_text_flat)
+            t.ok(trace.ambiguity_result(generated_text_flat), usage)
 #            return JsonResponse({"response": generated_text}, safe=False)
             return JsonResponse({"response": generated_text_flat, "usage": usage}, safe=False)
 
 
         except Exception as e:
-            print(f"Error occurred while calling the model: {e}")
+            t.fail(e, llm.status_for(e))
             return JsonResponse({"error": str(e)}, status=llm.status_for(e))
         
 
@@ -120,7 +120,7 @@ class findambiguity(APIView):
 class getclarity(APIView):
 # Create your views here.
     def post(self, request):
-        print("\n\n","getClarity: request.data**=", request.data,"\n\n")
+        t = trace.start("Discrepancy check", request, trace.applicant_lines(request.data))
         applicant_prompt = request.data
         applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
 
@@ -143,13 +143,13 @@ class getclarity(APIView):
 ###############################################################
             generated_text_flat = parse_json_response(generated_text)
 ###############################################################
-            print("\n\ngetclarity - Google Gen AI response: ", generated_text_flat)
+            t.ok(trace.discrepancy_result(generated_text_flat), usage)
 #            return JsonResponse({"response": generated_text}, safe=False)
             return JsonResponse({"response": generated_text_flat, "usage": usage}, safe=False)
 
 
         except Exception as e:
-            print(f"Error occurred while calling the model: {e}")
+            t.fail(e, llm.status_for(e))
             return JsonResponse({"error": str(e)}, status=llm.status_for(e))
 
 
@@ -157,10 +157,8 @@ class getclarity(APIView):
 ########submit Updated ###############################################################################
 class submit(APIView):
     # permission_classes = [IsAuthenticated]
-    print("submit hit!")
-
     def post(self, request):
-        print("\n\n","Submit Proposal form: request.data**=", request.data,"\n\n")
+        t = trace.start("Underwriting decision", request, trace.applicant_lines(request.data))
         applicant_prompt = request.data
         applicant_prompt_str = json.dumps(applicant_prompt, indent=2)
 
@@ -188,8 +186,7 @@ class submit(APIView):
             # You can still use your parse_json_response if it handles extra cleaning.
             generated_text_flat = parse_json_response(generated_text)
             ###############################################################
-            print(" Submit Proposal - Google Gen AI response: ", generated_text_flat)
-
+            
             # ==============================================================
             # NEW CODE: SAVE TO DATABASE USING SERIALIZER
             # ==============================================================
@@ -216,6 +213,7 @@ class submit(APIView):
             if serializer.is_valid():
                 # Saves the Proposal to the DB
                 saved_proposal = serializer.save() 
+                t.ok(trace.decision_result(generated_text_flat) + [trace.field("proposal id", saved_proposal.id)], usage)
                 
                 # Construct the final API response
                 api_response = {
@@ -225,7 +223,7 @@ class submit(APIView):
                 }
                 return JsonResponse(api_response, safe=False)
             else:
-                print("Serializer Errors:", serializer.errors)
+                t.fail(f"Could not save the proposal: {serializer.errors}", 400)
                 return JsonResponse(
                     {"error": "Failed to save proposal to DB.", "details": serializer.errors}, 
                     status=status.HTTP_400_BAD_REQUEST
@@ -233,7 +231,7 @@ class submit(APIView):
             # ==============================================================
 
         except Exception as e:
-            print(f"Error occurred while calling the model: {e}")
+            t.fail(e, llm.status_for(e))
             return JsonResponse({"error": str(e)}, status=llm.status_for(e))
 #######################################################################################        
 
@@ -243,8 +241,6 @@ class SubmitAdditionalAnswers(APIView):
     # permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        print("Submit Additional Answers hit!")
-
         data = request.data
         proposal_id = data.get("proposal_id")
         if not proposal_id:
@@ -262,6 +258,8 @@ class SubmitAdditionalAnswers(APIView):
 
         # 3. Get the new additional answers from frontend
         additional_answers = data.get("additional_answers", [])
+        t = trace.start("Follow-up review", request, [trace.field("proposal id", proposal_id),
+                                                       trace.field("new answers", f"{len(additional_answers)} answer(s)")])
 
         # Convert to pretty JSON strings for prompt construction
         original_prompt_str = json.dumps(original_prompt, indent=2)
@@ -300,26 +298,23 @@ class SubmitAdditionalAnswers(APIView):
             # Parse JSON response
             generated_text_flat = json.loads(generated_text)
 
-            print("Follow-up Submit - Google Gen AI response: ", generated_text_flat)
+            t.ok(trace.decision_result(generated_text_flat), usage)
             return JsonResponse({"response": generated_text_flat, "usage": usage}, safe=False)
 
         except Exception as e:
-            print(f"Error occurred while calling the model: {e}")
+            t.fail(e, llm.status_for(e))
             return JsonResponse({"error": str(e)}, status=llm.status_for(e))
         
         
 class postUWQn(APIView):
     # permission_classes = [IsAuthenticated]
     def post(self, request):
-        print("postUWQn hit!")
-        print("\n\n", "postUWQn: request.data**=", request.data, "\n\n")
-
         data = request.data
         proposal_id = data.get("proposal_id")
         answers = data.get("answers")
         
-        print(f"Received proposal_id: {proposal_id}")
-        print(f"Received answers: {answers}")
+        t = trace.start("Applicant answers", request, [trace.field("proposal id", proposal_id),
+                                                        trace.field("answers", f"{len(answers or [])} answer(s)")])
 
         db_payload = {
             "answers": answers,
@@ -332,6 +327,7 @@ class postUWQn(APIView):
             if serializer.is_valid():
                 # Saves the Uwquestions record to the DB
                 saved_question = serializer.save()
+                t.ok([trace.field("saved", f"uwquestion #{saved_question.id}")])
 
                 # Construct the final API response
                 api_response = {
@@ -342,7 +338,7 @@ class postUWQn(APIView):
                 return JsonResponse(api_response, safe=False)
 
             else:
-                print("Serializer Errors:", serializer.errors)
+                t.fail(f"Could not save the answers: {serializer.errors}", 400)
                 return JsonResponse(
                     {
                         "error": "Failed to save Uwquestions to DB.",
@@ -352,7 +348,7 @@ class postUWQn(APIView):
                 )
 
         except Exception as e:
-            print(f"Error occurred while saving Uwquestions: {e}")
+            t.fail(e, 500)
             return JsonResponse({"error": str(e)}, status=500)
 #######################################################################################        
 
@@ -378,6 +374,8 @@ class extractrecords(APIView):
         if len(uploads) > MAX_RECORD_FILES:
             return JsonResponse({"error": f"Upload at most {MAX_RECORD_FILES} files at a time."}, status=400)
 
+        t = trace.start("Records mapping", request,
+                        [trace.field("files", ", ".join(f"{f.name} ({f.size // 1024} KB)" for f in uploads))])
         guessed = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                    ".png": "image/png", ".tif": "image/tiff", ".tiff": "image/tiff", ".webp": "image/webp"}
         file_results, doc_blocks, total_chars = [], [], 0
@@ -393,7 +391,7 @@ class extractrecords(APIView):
             except docai.DocAINotConfigured as e:
                 return JsonResponse({"error": str(e)}, status=503)
             except docai.DocAIError as e:
-                print(f"Document AI failed for {f.name}: {e}")
+                t.fail(f"Document AI could not read {f.name}: {e}", 502)
                 return JsonResponse({"error": f"Document AI could not read {f.name}: {e}"}, status=502)
 
             file_results.append({"file_name": f.name, "pages": pages, "characters": len(text)})
@@ -420,7 +418,9 @@ class extractrecords(APIView):
             if not isinstance(raw, dict):
                 raise ValueError("Model returned a non-object response.")
         except Exception as e:
-            print(f"Error mapping records to the questionnaire: {e}")
+            t.fail(e, llm.status_for(e))
             return JsonResponse({"error": f"Could not interpret the records: {e}"}, status=llm.status_for(e))
 
-        return JsonResponse({"prefill": records.build_prefill(raw, today.date()), "files": file_results, "usage": [docai_usage, usage]})
+        prefill = records.build_prefill(raw, today.date())
+        t.ok(trace.records_result(prefill), [docai_usage, usage])
+        return JsonResponse({"prefill": prefill, "files": file_results, "usage": [docai_usage, usage]})
