@@ -98,13 +98,13 @@ class findambiguity(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
 #        print("Get Clarity Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
         try:
-            generated_text = llm.generate(full_prompt, model=llm.fast_model(), temperature=0.3, json_mode=True)
+            generated_text, usage = llm.generate_with_usage(full_prompt, model=llm.fast_model(), temperature=0.3, json_mode=True, label="Ambiguity check")
 ###############################################################
             generated_text_flat = parse_json_response(generated_text)
 ###############################################################
             print("\n\findambiguity - Google Gen AI response: ", generated_text_flat)
 #            return JsonResponse({"response": generated_text}, safe=False)
-            return JsonResponse({"response": generated_text_flat}, safe=False)
+            return JsonResponse({"response": generated_text_flat, "usage": usage}, safe=False)
 
 
         except Exception as e:
@@ -137,7 +137,7 @@ class getclarity(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
 #        print("Get Clarity Full prompt sent to Google Gen AI:\n", full_prompt)  # Debug: Check the final prompt being sent
         try:
-            generated_text = llm.generate(full_prompt, model=llm.fast_model(), temperature=0.3, json_mode=True)
+            generated_text, usage = llm.generate_with_usage(full_prompt, model=llm.fast_model(), temperature=0.3, json_mode=True, label="Discrepancy check")
 
 
 ###############################################################
@@ -145,7 +145,7 @@ class getclarity(APIView):
 ###############################################################
             print("\n\ngetclarity - Google Gen AI response: ", generated_text_flat)
 #            return JsonResponse({"response": generated_text}, safe=False)
-            return JsonResponse({"response": generated_text_flat}, safe=False)
+            return JsonResponse({"response": generated_text_flat, "usage": usage}, safe=False)
 
 
         except Exception as e:
@@ -180,7 +180,7 @@ class submit(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + applicant_prompt_str
         
         try:
-            generated_text = llm.generate(full_prompt, model=llm.decision_model(), temperature=0.3, json_mode=True)
+            generated_text, usage = llm.generate_with_usage(full_prompt, model=llm.decision_model(), temperature=0.3, json_mode=True, label="Underwriting decision")
 
 
             ###############################################################
@@ -220,7 +220,8 @@ class submit(APIView):
                 # Construct the final API response
                 api_response = {
                     "proposal_id": saved_proposal.id, # The frontend MUST save this ID
-                    "response": generated_text_flat
+                    "response": generated_text_flat,
+                    "usage": usage,
                 }
                 return JsonResponse(api_response, safe=False)
             else:
@@ -294,13 +295,13 @@ class SubmitAdditionalAnswers(APIView):
         #print("Full follow-up prompt sent to Gen AI:\n", full_prompt)
 
         try:
-            generated_text = llm.generate(full_prompt, model=llm.decision_model(), temperature=0.3, json_mode=True)
+            generated_text, usage = llm.generate_with_usage(full_prompt, model=llm.decision_model(), temperature=0.3, json_mode=True, label="Follow-up review")
 
             # Parse JSON response
             generated_text_flat = json.loads(generated_text)
 
             print("Follow-up Submit - Google Gen AI response: ", generated_text_flat)
-            return JsonResponse({"response": generated_text_flat}, safe=False)
+            return JsonResponse({"response": generated_text_flat, "usage": usage}, safe=False)
 
         except Exception as e:
             print(f"Error occurred while calling the model: {e}")
@@ -405,6 +406,8 @@ class extractrecords(APIView):
         if total_chars > MAX_RECORD_TEXT_CHARS:
             return JsonResponse({"error": "The uploaded records are too long to process together. Upload fewer or shorter documents."}, status=413)
 
+        docai_usage = llm.docai_usage(sum(f["pages"] for f in file_results))
+
         with open(os.path.join(settings.BASE_DIR, "Extract_records_instructions_v0.01.txt"), "r", encoding="utf-8") as fh:
             system_instructions = fh.read()
         today = datetime.now()
@@ -412,11 +415,12 @@ class extractrecords(APIView):
         full_prompt = system_instructions + "\n\n" + date_injection + "\n\n" + "\n\n".join(doc_blocks)
 
         try:
-            raw = parse_json_response(llm.generate(full_prompt, model=llm.decision_model(), temperature=0.1, json_mode=True))
+            text, usage = llm.generate_with_usage(full_prompt, model=llm.decision_model(), temperature=0.1, json_mode=True, label="Records mapping")
+            raw = parse_json_response(text)
             if not isinstance(raw, dict):
                 raise ValueError("Model returned a non-object response.")
         except Exception as e:
             print(f"Error mapping records to the questionnaire: {e}")
             return JsonResponse({"error": f"Could not interpret the records: {e}"}, status=llm.status_for(e))
 
-        return JsonResponse({"prefill": records.build_prefill(raw, today.date()), "files": file_results})
+        return JsonResponse({"prefill": records.build_prefill(raw, today.date()), "files": file_results, "usage": [docai_usage, usage]})

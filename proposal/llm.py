@@ -50,7 +50,65 @@ def client() -> genai.Client:
     return _client
 
 
+def _price_per_million(model: str):
+    """(input, output) USD per 1M tokens, or None when not configured.
+
+    Set LLM_PRICE_FAST / LLM_PRICE_DECISION in .env as "input,output" (e.g. "0.10,0.40")
+    from the Vertex AI / Gemini pricing page for the models you use. Not hard-coded
+    because prices change and differ per model."""
+    var = "LLM_PRICE_FAST" if model == fast_model() else "LLM_PRICE_DECISION" if model == decision_model() else None
+    raw = os.getenv(var, "") if var else ""
+    try:
+        inp, out = (float(x) for x in raw.split(","))
+        return inp, out
+    except ValueError:
+        return None
+
+
+def _usage(response, model: str, label: str) -> dict:
+    u = response.usage_metadata
+    prompt = (u.prompt_token_count or 0) if u else 0
+    candidates = (u.candidates_token_count or 0) if u else 0
+    thoughts = (u.thoughts_token_count or 0) if u else 0
+    out = candidates + thoughts  # thinking tokens are billed as output
+    price = _price_per_million(model)
+    cost = round((prompt * price[0] + out * price[1]) / 1_000_000, 6) if price else None
+    return {
+        "call": label,
+        "model": model,
+        "input_tokens": prompt,
+        "output_tokens": out,
+        "thinking_tokens": thoughts,
+        "total_tokens": (u.total_token_count or prompt + out) if u else 0,
+        "estimated_cost_usd": cost,
+    }
+
+
+def docai_usage(pages: int) -> dict:
+    """Usage entry for Document AI OCR, billed per page (DOCAI_PRICE_PER_1000_PAGES, USD)."""
+    try:
+        per_1000 = float(os.getenv("DOCAI_PRICE_PER_1000_PAGES", ""))
+    except ValueError:
+        per_1000 = None
+    return {
+        "call": "Document AI OCR",
+        "model": "Enterprise Document OCR",
+        "pages": pages,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "thinking_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": round(pages * per_1000 / 1000, 6) if per_1000 is not None else None,
+    }
+
+
 def generate(prompt: str, *, model: str, temperature: float = 0.3, json_mode: bool = False) -> str:
+    return generate_with_usage(prompt, model=model, temperature=temperature, json_mode=json_mode)[0]
+
+
+def generate_with_usage(prompt: str, *, model: str, temperature: float = 0.3, json_mode: bool = False,
+                        label: str = "") -> tuple[str, dict]:
+    """Like generate(), but also returns token counts and estimated cost for the call."""
     config = types.GenerateContentConfig(
         temperature=temperature,
         response_mime_type="application/json" if json_mode else None,
@@ -64,7 +122,7 @@ def generate(prompt: str, *, model: str, temperature: float = 0.3, json_mode: bo
         elif response.candidates:
             reason = response.candidates[0].finish_reason
         raise LLMError(f"Model did not return any text. Reason: {reason}.")
-    return text
+    return text, _usage(response, model, label)
 
 
 def status_for(exc: Exception) -> int:
